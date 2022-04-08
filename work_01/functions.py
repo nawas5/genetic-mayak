@@ -6,7 +6,7 @@ from sklearn.preprocessing import StandardScaler
 
 def createRoom(xcoord, ycoord):
     '''
-    функция создания комнаты по заданным координатам
+    определение комнаты по заданным координатам
     :param ncorners:
     :param xcoord:
     :param ycoord:
@@ -22,7 +22,7 @@ def createRoom(xcoord, ycoord):
 
 def findMinMaxRoom(xcoord, ycoord):
     '''
-    размеры комнаты
+    опеределение минимальных и максимальных размеров комнаты
     :param xcoord:
     :param ycoord:
     :return:
@@ -32,7 +32,7 @@ def findMinMaxRoom(xcoord, ycoord):
 
 def createPoints(stepx, stepy, xcoord, ycoord):
     '''
-    формирование внутренних и внешних точек
+    формирование массивов внутренних и внешних точек
     :param stepx:
     :param stepy:
     :param ncorners:
@@ -107,7 +107,7 @@ def createPoints(stepx, stepy, xcoord, ycoord):
 
 def standardScalerPoints(xcoord, ycoord, pointsIn, pointsOut):
     '''
-    стандартизация данных, чтобы они были распределены нормально
+    стандартизация данных
     :param xcoord:
     :param ycoord:
     :param pointsIn:
@@ -124,10 +124,17 @@ def standardScalerPoints(xcoord, ycoord, pointsIn, pointsOut):
     pointsOutScaler = scaler.transform(pointsOut.reshape(-1, 1))
     pointsOutScaler = pointsOutScaler.reshape(len(pointsOut), 2)
 
-    return roomScaler, pointsInScaler, pointsOutScaler
+    return roomScaler, pointsInScaler, pointsOutScaler, scaler
 
 
 def createCoordAnchors(nanchors, xcoord, ycoord):
+    '''
+    генерировние координат маяков
+    :param nanchors:
+    :param xcoord:
+    :param ycoord:
+    :return:
+    '''
     xrmin, xrmax, yrmin, yrmax = findMinMaxRoom(xcoord, ycoord)
     coordAnchors = np.zeros((nanchors, 2))
     for anchor in range(nanchors):
@@ -137,6 +144,13 @@ def createCoordAnchors(nanchors, xcoord, ycoord):
 
 
 def createPointsIndoors(coordAnchors, pointsIn, nanchors):
+    '''
+    удаление точки, если она совпала с координатой маяка
+    :param coordAnchors:
+    :param pointsIn:
+    :param nanchors:
+    :return:
+    '''
     index = []
     pointsInMetka = pointsIn
     for point in range(len(pointsIn)):
@@ -146,3 +160,90 @@ def createPointsIndoors(coordAnchors, pointsIn, nanchors):
     if index:
         pointsInMetka = np.delete(pointsIn, index, axis=0)
     return pointsInMetka
+
+
+def segmentCrossing(room, pointInMetka, coordAnchor):
+    '''
+    ставится flag метке, сколько маяков видит метку
+    0 - пересечений нет, маяк видит метку
+    1 - есть одно пересечение, маяк не видит метку
+    :param room:
+    :param pointInMetka:
+    :param coordAnchor:
+    :return:
+    '''
+    flag = 0
+    ncorners = len(room)
+
+    x1_1, y1_1 = coordAnchor
+    x1_2, y1_2 = pointInMetka
+
+    A1 = y1_1 - y1_2
+    B1 = x1_2 - x1_1
+    C1 = x1_1 * y1_2 - x1_2 * y1_1
+
+    def point(x, y):
+        if min(x1_1, x1_2) <= x <= max(x1_1, x1_2) and min(y1_1, y1_2) <= y <= max(y1_1, y1_2):
+            flag = 1
+        else:
+            flag = 0
+        return flag
+
+    for j in range(ncorners):
+
+        x2_1, y2_1 = room[j]
+        if j != (ncorners - 1):
+            x2_2, y2_2 = room[j + 1]
+        else:
+            x2_2, y2_2 = room[0]
+
+        A2 = y2_1 - y2_2
+        B2 = x2_2 - x2_1
+        C2 = x2_1 * y2_2 - x2_2 * y2_1
+
+        if B1 * A2 - B2 * A1 and A1:
+            y = (C2 * A1 - C1 * A2) / (B1 * A2 - B2 * A1)
+            x = (-C1 - B1 * y) / A1
+            flag += point(x, y)
+        elif B1 * A2 - B2 * A1 and A2:
+            y = (C2 * A1 - C1 * A2) / (B1 * A2 - B2 * A1)
+            x = (-C2 - B2 * y) / A2
+            flag += point(x, y)
+        else:
+            flag += 0
+    return flag
+
+
+def estimateDOP(room, pointsIn, coordAnchors, nanchors, DOPmax=20):
+    '''
+    расчет геометрического фактора
+    :param room:
+    :param pointsIn:
+    :param coordAnchors:
+    :param nanchors:
+    :param DOPmax:
+    :return:
+    '''
+    DOP = np.zeros(len(pointsIn))
+    DOP += DOPmax
+    pointsVisible = np.zeros(len(pointsIn))
+
+    for point, pointIn in enumerate(pointsIn):
+        rastMatrix = np.zeros(nanchors)
+        gradMatrix = np.zeros((nanchors, 2))
+        flagAnchor = 0
+
+        for anchor, coordAnchor in enumerate(coordAnchors):
+            flag = segmentCrossing(room, coordAnchor, pointIn)
+
+            if flag == 0:
+                flagAnchor += 1
+                rastMatrix[anchor] = np.sqrt((pointIn[0] - coordAnchor[0]) ** 2 + (pointIn[1] - coordAnchor[1]) ** 2)
+                # if rastMatrix[anchor]:
+                gradMatrix[anchor] = (pointIn - coordAnchor) / rastMatrix[anchor]
+
+            if flagAnchor >= 3:
+                pointsVisible[point] = 1
+                DOP[point] = np.sqrt(np.trace(np.linalg.inv(gradMatrix.T.dot(gradMatrix))))
+
+    return DOP, pointsVisible
