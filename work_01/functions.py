@@ -247,3 +247,56 @@ def estimateDOP(room, pointsIn, coordAnchors, nanchors, DOPmax=20):
                 DOP[point] = np.sqrt(np.trace(np.linalg.inv(gradMatrix.T.dot(gradMatrix))))
 
     return DOP, pointsVisible
+
+
+def getSurvPopul(popul, populMetka, val, nsurv, reverse):
+    '''
+    функция получения популяции
+    :param popul:
+    :param populMetka:
+    :param val:
+    :param nsurv:
+    :param reverse:
+    :return:
+    '''
+    newPopul = []
+    newPopulMetka = []
+    sval = sorted(val, reverse=reverse)
+    for i in range(nsurv):
+        index = val.index(sval[i])
+        newPopul.append(popul[index])
+        newPopulMetka.append(populMetka[index])
+    return newPopul, newPopulMetka, sval
+
+
+def getParents(currPopul, currPopulMetka, nsurv):
+    '''
+    функция получения родителей
+    :param currPopul:
+    :param currPopulMetka:
+    :param nsurv:
+    :return:
+    '''
+    indexp1 = random.randint(0, nsurv - 1)
+    indexp2 = random.randint(0, nsurv - 1)
+    botp1 = currPopul[indexp1]
+    botp2 = currPopul[indexp2]
+    botp1Metka = currPopulMetka[indexp1]
+    botp2Metka = currPopulMetka[indexp2]
+    return botp1, botp1Metka, botp2, botp2Metka
+
+
+def crossPointFrom2Parents(botp1, botp2, idx):
+    '''
+    функция смешивания (кроссинговера) двух родителей
+    :param botp1:
+    :param botp2:
+    :param idx:
+    :return:
+    '''
+    pindex = random.random()
+    if pindex < 0.5:
+        x = botp1[idx]
+    else:
+        x = botp2[idx]
+    return x
