@@ -2,6 +2,7 @@ import numpy as np
 import random
 import matplotlib.path as pltPath
 from sklearn.preprocessing import StandardScaler
+import plotly.graph_objects as go
 
 
 def createRoom(xcoord, ycoord):
@@ -143,25 +144,6 @@ def createCoordAnchors(nanchors, xcoord, ycoord):
     return coordAnchors
 
 
-def createPointsIndoors(coordAnchors, pointsIn, nanchors):
-    '''
-    удаление точки, если она совпала с координатой маяка
-    :param coordAnchors:
-    :param pointsIn:
-    :param nanchors:
-    :return:
-    '''
-    index = []
-    pointsInMetka = pointsIn
-    for point in range(len(pointsIn)):
-        for anchor in range(nanchors):
-            if pointsIn[point][0] == coordAnchors[anchor][0] and pointsIn[point][1] == coordAnchors[anchor][1]:
-                index.append(point)
-    if index:
-        pointsInMetka = np.delete(pointsIn, index, axis=0)
-    return pointsInMetka
-
-
 def segmentCrossing(room, pointInMetka, coordAnchor):
     '''
     ставится flag метке, сколько маяков видит метку
@@ -226,7 +208,6 @@ def estimateDOP(room, pointsIn, coordAnchors, nanchors, DOPmax=20):
     '''
     DOP = np.zeros(len(pointsIn))
     DOP += DOPmax
-    pointsVisible = np.zeros(len(pointsIn))
 
     for point, pointIn in enumerate(pointsIn):
         rastMatrix = np.zeros(nanchors)
@@ -239,41 +220,35 @@ def estimateDOP(room, pointsIn, coordAnchors, nanchors, DOPmax=20):
             if flag == 0:
                 flagAnchor += 1
                 rastMatrix[anchor] = np.sqrt((pointIn[0] - coordAnchor[0]) ** 2 + (pointIn[1] - coordAnchor[1]) ** 2)
-                # if rastMatrix[anchor]:
                 gradMatrix[anchor] = (pointIn - coordAnchor) / rastMatrix[anchor]
 
             if flagAnchor >= 3:
-                pointsVisible[point] = 1
                 DOP[point] = np.sqrt(np.trace(np.linalg.inv(gradMatrix.T.dot(gradMatrix))))
 
-    return DOP, pointsVisible
+    return DOP
 
 
-def getSurvPopul(popul, populMetka, val, nsurv, reverse):
+def getSurvPopul(popul, val, nsurv, reverse):
     '''
     функция получения популяции
     :param popul:
-    :param populMetka:
     :param val:
     :param nsurv:
     :param reverse:
     :return:
     '''
     newPopul = []
-    newPopulMetka = []
     sval = sorted(val, reverse=reverse)
     for i in range(nsurv):
         index = val.index(sval[i])
         newPopul.append(popul[index])
-        newPopulMetka.append(populMetka[index])
-    return newPopul, newPopulMetka, sval
+    return newPopul, sval
 
 
-def getParents(currPopul, currPopulMetka, nsurv):
+def getParents(currPopul, nsurv):
     '''
     функция получения родителей
     :param currPopul:
-    :param currPopulMetka:
     :param nsurv:
     :return:
     '''
@@ -281,9 +256,7 @@ def getParents(currPopul, currPopulMetka, nsurv):
     indexp2 = random.randint(0, nsurv - 1)
     botp1 = currPopul[indexp1]
     botp2 = currPopul[indexp2]
-    botp1Metka = currPopulMetka[indexp1]
-    botp2Metka = currPopulMetka[indexp2]
-    return botp1, botp1Metka, botp2, botp2Metka
+    return botp1, botp2
 
 
 def crossPointFrom2Parents(botp1, botp2, idx):
@@ -300,3 +273,69 @@ def crossPointFrom2Parents(botp1, botp2, idx):
     else:
         x = botp2[idx]
     return x
+
+
+def plotRoom(room, pointsIn, pointsOut):
+    roomPlot = list(room).copy()
+    roomPlot.append(roomPlot[0])
+    xr, yr = zip(*roomPlot)
+
+    xin, yin = pointsIn[:, 0], pointsIn[:, 1]
+    xout, yout = pointsOut[:, 0], pointsOut[:, 1]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=xr, y=yr,
+                             mode='lines',
+                             name='path'))
+    fig.add_trace(go.Scatter(x=xin, y=yin,
+                             mode='markers',
+                             name='points in path'))
+
+    fig.add_trace(go.Scatter(x=xout, y=yout,
+                             mode='markers', name='points out path'))
+
+    fig.show()
+
+
+def plotAnchors(coordAnchors, room):
+    roomPlot = list(room).copy()
+    roomPlot.append(roomPlot[0])
+    xr, yr = zip(*roomPlot)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=xr, y=yr,
+                             mode='lines',
+                             name='path'))
+    fig.add_trace(go.Scatter(x=coordAnchors[:, 0], y=coordAnchors[:, 1],
+                             mode='markers',
+                             name='coord mayak'))
+
+    fig.show()
+
+
+def plotDOPfactor(rooms, coordMayak, DOP, pointsInMetka):
+    rooms_plot = list(rooms).copy()
+    rooms_plot.append(rooms_plot[0])
+    xr, yr = zip(*rooms_plot)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(x=xr, y=yr, z=np.zeros(len(xr)),
+                               mode='lines',
+                               name="rooms"))
+
+    fig.add_trace(go.Mesh3d(x=(pointsInMetka[:, 0]),
+                            y=(pointsInMetka[:, 1]),
+                            z=DOP,
+                            opacity=0.7,
+                            color='blue',
+                            name='DOP'
+                            ))
+
+    fig.add_trace(go.Scatter3d(x=coordMayak[:, 0],
+                               y=coordMayak[:, 1],
+                               z=np.zeros(len(coordMayak)),
+                               mode='markers',
+                               name='coord mayak'
+                               ))
+
+    fig.show()
