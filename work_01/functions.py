@@ -143,6 +143,67 @@ def createCoordAnchors(nanchors, xcoord, ycoord):
         coordAnchors[anchor, 1] = random.uniform(yrmin, yrmax)
     return coordAnchors
 
+def polyDistPoint(xanchor, yanchor, xcoord, ycoord):
+    '''
+    сдвигать маяки на границы комнаты, если они вылетели за её пределы
+    :param xanchor:
+    :param yanchor:
+    :param xcoord:
+    :param ycoord:
+    :return:
+    '''
+
+    if (xcoord[0] != xcoord[-1]) or (ycoord[0] != ycoord[-1]):
+        xcoord = np.append(xcoord, xcoord[0])
+        ycoord = np.append(ycoord, ycoord[0])
+
+    A = -np.diff(ycoord)
+    B = np.diff(xcoord)
+    C = ycoord[1:] * xcoord[:-1] - xcoord[1:] * ycoord[:-1]
+
+    AB = 1 / (A ** 2 + B ** 2)
+    vv = (A * xanchor + B * yanchor + C) - 1e-3
+    xpoint = xanchor - (A * AB) * vv
+    ypoint = yanchor - (B * AB) * vv
+
+    idx_x = (((xpoint >= xcoord[:-1]) & (xpoint <= xcoord[1:])) | ((xpoint >= xcoord[1:]) & (xpoint <= xcoord[:-1])))
+    idx_y = (((ypoint >= ycoord[:-1]) & (ypoint <= ycoord[1:])) | ((ypoint >= ycoord[1:]) & (ypoint <= ycoord[:-1])))
+    idx = idx_x & idx_y
+
+    dcoord = np.sqrt((xcoord[:-1] - xanchor) ** 2 + (ycoord[:-1] - yanchor) ** 2)
+
+    if not any(idx):
+        i = np.argmin(dcoord)
+        xpoly = xcoord[i]
+        ypoly = ycoord[i]
+    else:
+        dpoint = np.sqrt((xpoint[idx] - xanchor) ** 2 + (ypoint[idx] - yanchor) ** 2)
+        i_coord = np.argmin(dcoord)
+        i_point = np.argmin(dpoint)
+        i = np.argmin([i_coord, i_point])
+        if i == 0:
+            xpoly = xpoint[i_coord]
+            ypoly = ypoint[i_coord]
+        elif i == 1:
+            idxs = np.where(idx)[0]
+            xpoly = xpoint[idxs[i_point]]
+            ypoly = ypoint[idxs[i_point]]
+
+    return xpoly, ypoly
+
+def polyCoordAnchors(xcoord, ycoord, room, coordAnchors):
+
+    polyCoordAnchor = np.zeros(coordAnchors.shape)
+    path = pltPath.Path(room)
+    for i, coordAnchor in enumerate(coordAnchors):
+        inside = path.contains_points(coordAnchor.reshape((1,2)))
+        if not inside:
+            xpoly, ypoly = polyDistPoint(coordAnchor[0], coordAnchor[1], xcoord, ycoord)
+            polyCoordAnchor[i] = [xpoly, ypoly]
+        else:
+            polyCoordAnchor[i] = coordAnchor
+    return polyCoordAnchor
+
 
 def segmentCrossing(room, pointInMetka, coordAnchor):
     '''
