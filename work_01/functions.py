@@ -143,6 +143,7 @@ def createCoordAnchors(nanchors, xcoord, ycoord):
         coordAnchors[anchor, 1] = random.uniform(yrmin, yrmax)
     return coordAnchors
 
+
 def polyDistPoint(xanchor, yanchor, xcoord, ycoord):
     '''
     сдвигать маяки на границы комнаты, если они вылетели за её пределы
@@ -191,12 +192,12 @@ def polyDistPoint(xanchor, yanchor, xcoord, ycoord):
 
     return xpoly, ypoly
 
-def polyCoordAnchors(xcoord, ycoord, room, coordAnchors):
 
+def polyCoordAnchors(xcoord, ycoord, room, coordAnchors):
     polyCoordAnchor = np.zeros(coordAnchors.shape)
     path = pltPath.Path(room)
     for i, coordAnchor in enumerate(coordAnchors):
-        inside = path.contains_points(coordAnchor.reshape((1,2)))
+        inside = path.contains_points(coordAnchor.reshape((1, 2)))
         if not inside:
             xpoly, ypoly = polyDistPoint(coordAnchor[0], coordAnchor[1], xcoord, ycoord)
             polyCoordAnchor[i] = [xpoly, ypoly]
@@ -334,6 +335,102 @@ def crossPointFrom2Parents(botp1, botp2, idx):
     else:
         x = botp2[idx]
     return x
+
+
+def getParentsN(nParentReproduct, currPopul, nsurv):
+    '''
+    функция получения родителей
+    :param nParentReproduct:
+    :param currPopul:
+    :param nsurv:
+    :return: parents
+    '''
+    parents = []
+    nsurvi = [i for i in range(nsurv)]
+    for parent in range(nParentReproduct):
+        indexp = random.choice(nsurvi)
+        parents.append(currPopul[indexp])
+        nsurvi.remove(indexp)
+    return parents
+
+
+def geneReplace(skoGenesReplace, skoCoordVariation, bot, nanchors):
+    '''
+    мутация бота удаление/вставка старого гена новым
+    :param skoGenesReplace:
+    :param skoCoordVariation:
+    :param bot:
+    :param nanchors:
+    :return: bot:
+    '''
+    genesReplace = abs(round(skoGenesReplace * np.random.randn()))
+    if genesReplace > 0:
+        for genes in range(genesReplace):
+            indexReplace = random.randint(0, nanchors * 2 - 1)
+            bot.reshape(nanchors * 2)[indexReplace] += skoCoordVariation * np.random.randn()
+    return bot
+
+
+def geneExchange(skoChangeGenes, bot, nanchors):
+    '''
+    мутация бота внутри - замена генов
+    :param skoChangeGenes:
+    :param bot:
+    :param nanchors:
+    :return: bot
+    '''
+    genesChange = abs(round(skoChangeGenes * np.random.randn()))
+    if genesChange > 0:
+        for genes in range(genesChange):
+            while 1:
+                index1 = random.randint(0, nanchors * 2 - 1)
+                index2 = random.randint(0, nanchors * 2 - 1)
+                if index1 != index2:
+                    break
+            value1 = bot.reshape(nanchors * 2)[index1]
+            value2 = bot.reshape(nanchors * 2)[index2]
+            bot.reshape(nanchors * 2)[index1] = value2
+            bot.reshape(nanchors * 2)[index2] = value1
+    return bot
+
+
+def crossPointFromNParents(nParentReproduct, parents, nanchors):
+    '''
+    равномерное размножение родителей
+    :param nParentReproduct:
+    :param parents:
+    :param nanchors:
+    :return: bot
+    '''
+    bot = np.zeros(nanchors * 2)
+    for i in range(nanchors * 2):
+        idx = random.randint(0, nParentReproduct - 1)
+        parent = parents[idx].reshape(nanchors * 2)
+        bot[i] = parent[i]
+    return bot.reshape((nanchors, 2))
+
+
+def partPointFromNParents(nParentReproduct, parents, nanchors, nPartPoints):
+    '''
+    размножение с разрывом хромосом
+    :param nParentReproduct:
+    :param parents:
+    :param nanchors:
+    :param nPartPoints:
+    :return: bot
+    '''
+    bot = np.zeros(nanchors * 2)
+
+    def partDivision(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i: i + n]
+
+    partGenes = list(partDivision([i for i in range(nanchors * 2)], round(nanchors * 2 / (nPartPoints + 1))))
+    for part in partGenes:
+        idx = random.randint(0, nParentReproduct - 1)
+        parent = parents[idx].reshape(nanchors * 2)
+        bot[part] = parent[part]
+    return bot.reshape((nanchors, 2))
 
 
 def plotRoom(room, pointsIn, pointsOut):
